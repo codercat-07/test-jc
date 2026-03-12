@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BD-LMS: Advanced Learning Management System
 
-## Getting Started
+A premium, full-stack learning management system tailored for the Bangladesh competitive exam market (BCS, Bank, Govt Jobs). Features a modern tech stack centered on Next.js 15, Prisma, and Clerk.
 
-First, run the development server:
+## 🚀 Speed Start
 
 ```bash
+# 1. Clone & Install
+git clone <repo-url>
+npm install
+
+# 2. Environment Setup
+# Copy .env.example to .env.local and fill in your secrets
+cp .env.example .env.local
+
+# 3. Database Sync
+npx prisma generate
+npx prisma db push
+
+# 4. Development
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🛠 Tech Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Framework**: Next.js 15 (App Router, Server Components)
+- **Auth**: Clerk (v6) with Metadata-based Role system
+- **Database**: PostgreSQL with Prisma 5
+- **Styling**: Tailwind CSS + Headless UI + Shaded UI
+- **Editor**: Custom Tiptap v2 (KaTeX, Youtube, UploadThing)
+- **Analytics**: Recharts for performance tracking
+- **Deployment**: Optimized for Vercel/Railway
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📂 Architecture Overview
 
-## Learn More
+- `src/app/(main)`: Public-facing content routes (MCQs, Exams, Blog, etc.)
+- `src/app/(dashboard)`: Private student workspace and history.
+- `src/app/(admin)`: Administrative control center.
+- `src/lib`: Core utilities (API handlers, Auth helpers, Zod schemas).
+- `prisma/schema.prisma`: The single source of truth for the platform's data models.
 
-To learn more about Next.js, take a look at the following resources:
+## 🔑 Key Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Exam Hall**: Real-time timer-based exams with automatic grading.
+- **Rich Content**: Tiptap editor with full math support using KaTeX.
+- **Global Search**: Command palette (Cmd+K) for instant portal-wide discovery.
+- **Analytics**: Detailed performance breakdowns for both students and admins.
+- **Data Vault**: Centralized resource library for PDFs and study assets.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📄 License
+Proprietary. Developed for BD-LMS Project.

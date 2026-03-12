@@ -1,0 +1,393 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// ── Enums ────────────────────────────────────────────────────────
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SavedType {
+  MCQ
+  LECTURE
+  BLOG
+  CURRENT_AFFAIR
+  WRITTEN
+}
+
+enum ModuleType {
+  LECTURE
+  WRITTEN_EXAM
+}
+
+enum NotificationType {
+  NEW_EXAM
+  RESULT
+  SYSTEM
+  COMMENT
+}
+
+// ── Model: User ──────────────────────────────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  phone     String?  @unique
+  name      String
+  avatar    String?
+  role      Role     @default(STUDENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  savedItems    SavedItem[]
+  examAttempts  ExamAttempt[]
+  comments      Comment[]
+  reports       Report[]
+  notifications Notification[]
+
+  @@index([clerkId])
+  @@index([role])
+}
+
+// ── Model: Organization (প্রতিষ্ঠানের নিয়োগ) ─────────────────
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  nameBn    String
+  slug      String   @unique
+  logo      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  mcqs       MCQ[]
+  exams      Exam[]
+  jobNotices JobNotice[]
+}
+
+// ── Model: SiteSettings ──────────────────────────────────────────
+model SiteSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  category  String // 'menu' | 'design' | 'exam' | 'organization'
+  updatedAt DateTime @updatedAt
+}
+
+// ── Model: MCQ & Topic Hierarchy ──────────────────────────────────
+model Subject {
+  id           String        @id @default(cuid())
+  name         String
+  nameBn       String
+  slug         String        @unique
+  order        Int           @default(0)
+  topics       Topic[]
+  mcqs         MCQ[]
+  writtenExams WrittenExam[]
+}
+
+model Topic {
+  id        String     @id @default(cuid())
+  name      String
+  nameBn    String
+  slug      String
+  order     Int        @default(0)
+  subjectId String
+  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subtopics Subtopic[]
+  mcqs      MCQ[]
+
+  @@unique([subjectId, slug])
+}
+
+model Subtopic {
+  id      String @id @default(cuid())
+  name    String
+  nameBn  String
+  order   Int    @default(0)
+  topicId String
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  mcqs    MCQ[]
+}
+
+model MCQ {
+  id             String        @id @default(cuid())
+  uid            String        @unique // e.g. MCQ-00001
+  question       Json // Tiptap JSON
+  questionPlain  String // plain text for full-text search
+  options        Json // [{id,text,isCorrect,textPlain}]
+  explanation    Json?
+  subjectId      String?
+  subject        Subject?      @relation(fields: [subjectId], references: [id])
+  topicId        String?
+  topic          Topic?        @relation(fields: [topicId], references: [id])
+  subtopicId     String?
+  subtopic       Subtopic?     @relation(fields: [subtopicId], references: [id])
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  examHeading    String?
+  examDate       DateTime?
+  status         ContentStatus @default(DRAFT)
+  seoTitle       String?
+  seoDesc        String?
+  viewCount      Int           @default(0)
+  attemptCount   Int           @default(0)
+  correctCount   Int           @default(0)
+  createdBy      String // Clerk user ID
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([subjectId, topicId, status])
+  @@index([examDate])
+  @@index([organizationId])
+  @@index([status])
+}
+
+// ── Model: Exam, Attempt & Result ─────────────────────────────────
+model ExamSection {
+  id     String @id @default(cuid())
+  name   String
+  nameBn String
+  order  Int    @default(0)
+}
+
+model Exam {
+  id             String            @id @default(cuid())
+  uid            String            @unique
+  title          String
+  slug           String            @unique
+  organizationId String?
+  organization   Organization?     @relation(fields: [organizationId], references: [id])
+  totalTime      Int // minutes
+  startTime      DateTime?
+  endTime        DateTime?
+  perCorrectMark Float             @default(1)
+  perWrongMark   Float             @default(0.25)
+  passMark       Float?
+  isLive         Boolean           @default(false)
+  status         ContentStatus     @default(DRAFT)
+  sections       ExamSectionItem[]
+  attempts       ExamAttempt[]
+  createdBy      String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([status, isLive])
+  @@index([startTime, endTime])
+}
+
+model ExamSectionItem {
+  id        String   @id @default(cuid())
+  examId    String
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  sectionId String
+  mcqUids   String[] // ordered list of MCQ UIDs
+  order     Int
+
+  @@index([examId])
+}
+
+model ExamAttempt {
+  id          String   @id @default(cuid())
+  examId      String
+  exam        Exam     @relation(fields: [examId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  answers     Json // {[mcqUid]: optionId | null}
+  score       Float
+  correct     Int
+  incorrect   Int
+  skipped     Int
+  timeTaken   Int // seconds
+  rank        Int? // computed post-submission
+  submittedAt DateTime @default(now())
+
+  @@unique([examId, userId])
+  @@index([examId])
+  @@index([userId])
+}
+
+// ── Model: Lectures & Modules ─────────────────────────────────────
+model LectureModule {
+  id          String     @id @default(cuid())
+  title       String
+  slug        String     @unique
+  description String?
+  type        ModuleType @default(LECTURE)
+  order       Int        @default(0)
+  lectures    Lecture[]
+}
+
+model Lecture {
+  id             String         @id @default(cuid())
+  title          String
+  slug           String         @unique
+  subheading     String?
+  content        Json
+  contentPlain   String
+  youtubeUrl     String?
+  moduleId       String?
+  module         LectureModule? @relation(fields: [moduleId], references: [id])
+  subjectId      String?
+  topicId        String?
+  relatedMcqUids String[]
+  attachments    Json? // [{name, url, type}]
+  order          Int            @default(0)
+  status         ContentStatus  @default(DRAFT)
+  seoTitle       String?
+  seoDesc        String?
+  viewCount      Int            @default(0)
+  createdBy      String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([moduleId, status])
+  @@index([status])
+}
+
+// ── Model: Extras ─────────────────────────────────────────────────
+model Blog {
+  id           String        @id @default(cuid())
+  title        String
+  slug         String        @unique
+  excerpt      String?
+  content      Json
+  contentPlain String
+  coverImage   String?
+  tags         String[]
+  status       ContentStatus @default(DRAFT)
+  seoTitle     String?
+  seoDesc      String?
+  viewCount    Int           @default(0)
+  createdBy    String
+  publishedAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model JobNotice {
+  id             String       @id @default(cuid())
+  title          String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  deadline       DateTime?
+  publishedAt    DateTime
+  pdfUrl         String?
+  sourceUrl      String?
+  circular       String?
+  relatedExamId  String?
+  createdAt      DateTime     @default(now())
+}
+
+model CurrentAffairs {
+  id             String   @id @default(cuid())
+  headline       String
+  category       String
+  summary        String
+  keyFacts       Json // string[]
+  source         String?
+  publishedAt    DateTime @default(now())
+  relatedMcqUids String[]
+  createdAt      DateTime @default(now())
+
+  @@index([publishedAt])
+  @@index([category])
+}
+
+model Resource {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  fileUrl     String
+  fileSize    Int?
+  fileType    String        @default("PDF")
+  category    String?
+  status      ContentStatus @default(DRAFT)
+  isFree      Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model WrittenExam {
+  id           String        @id @default(cuid())
+  title        String
+  slug         String        @unique
+  subjectId    String?
+  subject      Subject?      @relation(fields: [subjectId], references: [id])
+  content      Json // Tiptap JSON for question
+  solution     Json? // Tiptap JSON for sample answer
+  status       ContentStatus @default(DRAFT)
+  seoTitle     String?
+  seoDesc      String?
+  viewCount    Int           @default(0)
+  createdBy    String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model SavedItem {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemType  SavedType
+  itemId    String
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, itemType, itemId])
+  @@index([userId, itemType])
+}
+
+model Comment {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  content     String
+  contentType String
+  contentId   String
+  parentId    String?
+  parent      Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies     Comment[] @relation("CommentReplies")
+  isApproved  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@index([contentType, contentId])
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  contentType String
+  contentId   String
+  reason      String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+}
